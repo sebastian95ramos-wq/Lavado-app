@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moto Lavado Expréss</title>
+<link rel="manifest" href="manifest.json">
+<style>
+body{font-family:Arial;background:#f4f4f4;margin:0;padding:10px}
+.container{max-width:900px;margin:auto;background:#fff;padding:15px;border-radius:12px}
+h1{text-align:center}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button,input,select{padding:12px;margin:5px 0;font-size:16px;border-radius:8px;border:none}
+button{flex:1}
+input,select{border:1px solid #ccc;flex:2}
+.btn50{background:#ffd54f}
+.btn70{background:#81c784}
+.btngrat{background:#64b5f6;color:#fff}
+.reset{background:#e57373;color:white}
+.pdf{background:#9575cd;color:white}
+table{width:100%;margin-top:10px;border-collapse:collapse}
+th,td{border:1px solid #ddd;padding:6px;text-align:center;font-size:14px}
+.total{font-size:20px;margin-top:10px;text-align:center}
+.tabs{display:flex;gap:8px;margin-top:10px}
+.tab{padding:10px 12px;background:#eee;border-radius:8px;cursor:pointer}
+.hidden{display:none}
+.notice{padding:8px;border-radius:8px;background:#e8f5e9;color:#2e7d32;margin-top:6px}
+.warn{background:#fff3e0;color:#ef6c00}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Moto Lavado Expréss</h1>
+
+<div class="row">
+  <input type="text" id="cliente" placeholder="Número de cliente (ej: 030)">
+  <button class="btn50" onclick="agregar(50)">+ $50</button>
+  <button class="btn70" onclick="agregar(70)">+ $70</button>
+  <button class="btngrat" onclick="lavadoGratis()">+ GRATIS</button>
+</div>
+
+<div class="row">
+  <button onclick="verHistorialCliente()">Ver historial cliente</button>
+  <button class="reset" onclick="resetearDia()">Reiniciar día</button>
+</div>
+
+<div class="row">
+  <select id="filtroFecha"></select>
+  <button class="pdf" onclick="generarPDF()">Descargar PDF</button>
+</div>
+
+<div id="mensaje"></div>
+
+<div class="tabs">
+  <div class="tab" onclick="cambiarTab('hoy')">Hoy</div>
+  <div class="tab" onclick="cambiarTab('dias')">Historial</div>
+</div>
+
+<div id="tabHoy">
+  <table>
+    <thead>
+      <tr><th>#</th><th>Cliente</th><th>Servicio</th><th>Fecha</th></tr>
+    </thead>
+    <tbody id="tablaHoy"></tbody>
+  </table>
+  <div class="total">Total: $<span id="totalHoy">0</span></div>
+</div>
+
+<div id="tabDias" class="hidden">
+  <table>
+    <thead>
+      <tr><th>Fecha</th><th>Motos</th><th>Total</th></tr>
+    </thead>
+    <tbody id="tablaDias"></tbody>
+  </table>
+</div>
+
+<div id="historialCliente"></div>
+</div>
+
+<script>
+let registros = JSON.parse(localStorage.getItem('registros')) || [];
+let hoy = new Date().toLocaleDateString();
+
+function guardar(){localStorage.setItem('registros', JSON.stringify(registros));}
+function normalizarCliente(c){return (c||'').trim();}
+
+function lavadasDesdeUltimoGratis(cliente){
+ let count=0;
+ for(let i=registros.length-1;i>=0;i--){
+  let r=registros[i];
+  if(r.cliente!==cliente) continue;
+  if(r.gratis) break;
+  count++;
+ }
+ return count;
+}
+
+function agregar(valor){
+ let cliente=normalizarCliente(document.getElementById('cliente').value);
+ if(cliente===''){alert('Ingresa cliente');return;}
+ if(lavadasDesdeUltimoGratis(cliente)>=4){mostrarMsg('Debe ser GRATIS',true);return;}
+ registros.push({cliente,servicio:valor,tipo:`$${valor}`,fecha:hoy,gratis:false});
+ guardar();render();
+ document.getElementById('cliente').value='';
+}
+
+function lavadoGratis(){
+ let cliente=normalizarCliente(document.getElementById('cliente').value);
+ if(cliente===''){alert('Ingresa cliente');return;}
+ if(lavadasDesdeUltimoGratis(cliente)<4){mostrarMsg('Aún no aplica',true);return;}
+ registros.push({cliente,servicio:0,tipo:'GRATIS',fecha:hoy,gratis:true});
+ guardar();render();
+ document.getElementById('cliente').value='';
+}
+
+function render(){
+ let tabla=document.getElementById('tablaHoy');
+ tabla.innerHTML='';
+ let total=0;
+ registros.filter(r=>r.fecha===hoy).forEach((r,i)=>{
+  total+=r.servicio;
+  tabla.innerHTML+=`<tr><td>${i+1}</td><td>${r.cliente}</td><td>${r.tipo}</td><td>${r.fecha}</td></tr>`;
+ });
+ document.getElementById('totalHoy').innerText=total;
+ actualizarFechas();
+ renderDias();
+}
+
+function renderDias(){
+ let mapa={};
+ registros.forEach(r=>{
+  if(!mapa[r.fecha]) mapa[r.fecha]={total:0,count:0};
+  mapa[r.fecha].total+=r.servicio;
+  mapa[r.fecha].count++;
+ });
+ let tabla=document.getElementById('tablaDias');
+ tabla.innerHTML='';
+ Object.keys(mapa).forEach(f=>{
+  tabla.innerHTML+=`<tr><td>${f}</td><td>${mapa[f].count}</td><td>$${mapa[f].total}</td></tr>`;
+ });
+}
+
+function actualizarFechas(){
+ let select=document.getElementById('filtroFecha');
+ let fechas=[...new Set(registros.map(r=>r.fecha))];
+ select.innerHTML='<option value="todas">Todas</option>';
+ fechas.forEach(f=>{
+  select.innerHTML+=`<option value="${f}">${f}</option>`;
+ });
+}
+
+function generarPDF(){
+ let filtro=document.getElementById('filtroFecha').value;
+ let data = filtro==='todas'? registros : registros.filter(r=>r.fecha===filtro);
+ let contenido='<h2>Reporte Moto Lavado</h2>';
+ data.forEach((r,i)=>{
+  contenido+=`<p>${i+1}. Cliente ${r.cliente} - ${r.tipo} - ${r.fecha}</p>`;
+ });
+ let ventana=window.open('','_blank');
+ ventana.document.write(contenido);
+ ventana.print();
+}
+
+function cambiarTab(t){
+ document.getElementById('tabHoy').classList.toggle('hidden',t!=='hoy');
+ document.getElementById('tabDias').classList.toggle('hidden',t!=='dias');
+}
+
+function mostrarMsg(t,w){
+ let m=document.getElementById('mensaje');
+ m.innerHTML=`<div class='notice ${w?'warn':''}'>${t}</div>`;
+ setTimeout(()=>m.innerHTML='',2000);
+}
+
+function resetearDia(){hoy=new Date().toLocaleDateString();render();}
+
+render();
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
+</script>
+</body>
+</html>
