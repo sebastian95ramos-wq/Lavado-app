@@ -150,6 +150,22 @@ function actualizarFechas(){
  });
 }
 
+function verHistorialCliente(){
+  let cliente=normalizarCliente(document.getElementById('cliente').value);
+  if(cliente===''){alert('Ingresa cliente');return;}
+  let lista=registros.filter(r=>r.cliente===cliente);
+  let div=document.getElementById('historialCliente');
+  if(lista.length===0){
+    div.innerHTML=`<h3>Cliente ${cliente}</h3><p>No tiene registros</p>`;
+    return;
+  }
+  let html=`<h3>Historial cliente ${cliente}</h3>`;
+  lista.forEach((r,i)=>{
+    html+=`<p>${i+1}. ${r.tipo} - ${r.fecha}</p>`;
+  });
+  div.innerHTML=html;
+}
+
 function generarPDF(){
  let filtro=document.getElementById('filtroFecha').value;
  let data = filtro==='todas'? registros : registros.filter(r=>r.fecha===filtro);
